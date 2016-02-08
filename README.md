@@ -1,2 +1,2 @@
 # CS446
-Spring 2016
+Operating Systems
