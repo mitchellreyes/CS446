@@ -7,6 +7,7 @@
 #include <pthread.h>
 #include <cstdlib>
 #include <time.h>
+#include <iomanip>
 
 using namespace std;
 
@@ -34,18 +35,19 @@ typedef struct config
 clock_t runtime;
 float duration = 0.000000;
 
-int getData( config* cnfData, process* data);
+int getData( config* cnfData, process* data, int &numProcesses);
 int getConfigData(const char* fileName, config* data);
-void calcCycleTime(config* cnfData, process* mdfData);
-int createThread(process* mdfData);
+void calcCycleTime(config* cnfData, process* mdfData, int numProcesses);
+int createThread(process* mdfData, int numProcesses);
 void* runIO(process* data);
 
 
 int main(int argc, char *argv[])
 {
 	
-	config* configData = new config[10];
+	config* configData = new config[1];
 	process* PCB = new process[500];
+	int numProcesses = 0;
 
 	//getData will change dependant on getConfigData->logFile
 	if(getConfigData(argv[1], configData) == 1)
@@ -54,10 +56,10 @@ int main(int argc, char *argv[])
 	}
 	else
 	{
-		getData(configData, PCB);
+		getData(configData, PCB, numProcesses);
 	}
-	calcCycleTime(configData, PCB);
-	createThread(PCB);
+	calcCycleTime(configData, PCB, numProcesses);
+	createThread(PCB, numProcesses);
 
 	//createThread Loop
 	return 0;
@@ -98,30 +100,35 @@ int getConfigData(const char* fileName, config* data)
 	}
 }
 
-void calcCycleTime(config* cnfData, process* mdfData)
+void calcCycleTime(config* cnfData, process* mdfData, int numProcesses)
 {	
 	//for every instance in the struct array of the mdf file
-	for(int i = 0; i < 10; i++)
+	for(int i = 0; i < numProcesses; i++)
 	{
 		if(strcmp(mdfData[i].state, "(harddrive)") == 0)
 		{
 			mdfData[i].cycleTime = (mdfData[i].burstTime * cnfData->hardDriveCycleTime) / 1000.0;
+			//mdfData[i].state = "hard drive";
 		}
 		else if(strcmp(mdfData[i].state, "(keyboard)") == 0)
 		{
 			mdfData[i].cycleTime = (mdfData[i].burstTime * cnfData->keyboardCycleTime) / 1000.0;
+			//mdfData[i].state = "keyboard";
 		}
 		else if(strcmp(mdfData[i].state, "(printer)") == 0)
 		{
 			mdfData[i].cycleTime = (mdfData[i].burstTime * cnfData->printerCycleTime) / 1000.0;
+			//mdfData[i].state = "printer";
 		}
 		else if(strcmp(mdfData[i].state, "(run)") == 0)
 		{
 			mdfData[i].cycleTime = (mdfData[i].burstTime * cnfData->processorCycleTime) / 1000.0;
+			//mdfData[i].state = "processor";
 		}
 		else if(strcmp(mdfData[i].state, "(monitor)") == 0)
 		{
 			mdfData[i].cycleTime = (mdfData[i].burstTime * cnfData->monitorDisplayTime) / 1000.0;
+			//mdfData[i].state = "monitor";
 		}
 		else
 		{
@@ -137,7 +144,7 @@ O(hard drive)12; P(run)8; I(hard drive)9; P(run)15; O(hard drive)10;
 I(keyboard)13; O(hard drive)10; P(run)14; A(end)0; S(end)0.
 End Program Meta-Data Code.*/
 
-int getData( config* cnfData, process* data)
+int getData( config* cnfData, process* data, int &numProcesses)
 {
 	//converting the string to a char array
 	int size_of_filePath = (cnfData->filePath).size();
@@ -184,6 +191,7 @@ int getData( config* cnfData, process* data)
 			if(stateCheck == ';')
 			{
 				data++;
+				numProcesses++;
 				index = 0;
 			}
 			else if(stateCheck == '.')
@@ -203,38 +211,63 @@ void* runIO(void* mdfData)
 {
 	//recast our data back to process data from void*
 	process* myData = (process*)mdfData;
-	cout << "this is my process in the thread creation: " << myData->pName << endl;
-	//do the math for the clock to wait
 	float threadTime = duration;
-	printf("%.6f - duration before wait time\n", duration);
-	//waiting until it hits the time duration
-	//while((duration - threadTime) < myData->cycleTime);
-	//printf("%.6f - Simulator program starting\n", duration);
-	//duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
-	//cout << "duration in the thread process: " << duration << endl;
+	duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
+	float stopTime = (myData->cycleTime);
+	while((duration - threadTime) < stopTime)
+	{
+		duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
+	}
+	duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
 }
 
-int createThread(process* mdfData)
+int createThread(process* mdfData, int numProcesses)
 {
 	pthread_t t1;
 	process* needle;
 	runtime = clock();
+	cout << fixed;
+	cout << setprecision(6);
 	duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
 	printf("%.6f - Simulator program starting\n", duration);
 
-	for(int i = 0; i < 10; i++)
+	for(int i = 0; i < numProcesses; i++)
 	{	
-		duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
-		//thread processes
-		if(mdfData[i].pName == 'I' || mdfData[i].pName == 'O')
+		if(mdfData[i].pName == 'S' && (strcmp(mdfData[i].state, "(start)") == 0))
 		{
-			*needle = mdfData[i];
-			cout << "Going into thread creation at loop: " << duration << endl;
-			//cout << "Look I found an " << mdfData[i].pName << endl;
-			pthread_create(&t1, NULL, runIO, (void*)needle);
-			pthread_join(t1, NULL);
+			duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
+			cout << duration << " - OS: preparing process 1" << endl;
 		}
-		//printf("%.6f - loop %d duration\n", duration, i); //should print out start/end of the cycle
-		duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
+		else if(mdfData[i].pName == 'A' && (strcmp(mdfData[i].state, "(start)") == 0))
+		{
+			duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
+			cout << duration << " - OS: starting process 1" << endl;
+		}
+		else if(mdfData[i].pName == 'A' && (strcmp(mdfData[i].state, "(end)") == 0))
+		{
+			duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
+			cout << duration << " - OS: removing process 1" << endl;
+			cout << duration << " - Simulator program ending" << endl;
+		}
+		else
+		{
+			duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
+			//printing out 6 decimal points every time
+			cout << duration << " - Process 1: start" << mdfData[i].state << "input" << endl;
+			if(mdfData[i].pName == 'I' || mdfData[i].pName == 'O')
+			{
+				*needle = mdfData[i];
+
+				pthread_create(&t1, NULL, runIO, (void*)needle);
+				pthread_join(t1, NULL);
+				printf("%.6f - Process 1: end %s input\n", duration, mdfData[i].state);
+			}
+			else
+			{
+				duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
+				printf("%.6f - Process 1: end %s input\n", duration, mdfData[i].state);
+			}
+		}
+			
 	}
 }
