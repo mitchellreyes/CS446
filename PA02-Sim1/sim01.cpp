@@ -17,6 +17,7 @@ typedef struct process
 	int burstTime;
 	char state[30];
 	float cycleTime;
+	string stateName;
 }process;
 
 typedef struct config
@@ -38,8 +39,11 @@ float duration = 0.000000;
 int getData( config* cnfData, process* data, int &numProcesses);
 int getConfigData(const char* fileName, config* data);
 void calcCycleTime(config* cnfData, process* mdfData, int numProcesses);
-int createThread(process* mdfData, int numProcesses);
+int createThread(process* mdfData, int numProcesses, config* cnfData);
 void* runIO(process* data);
+void convertProcessName(process* mdfData, int numProcesses);
+void viewData(config* cnfData, process* mdfData);
+
 
 
 int main(int argc, char *argv[])
@@ -49,7 +53,6 @@ int main(int argc, char *argv[])
 	process* PCB = new process[500];
 	int numProcesses = 0;
 
-	//getData will change dependant on getConfigData->logFile
 	if(getConfigData(argv[1], configData) == 1)
 	{
 		return 1;
@@ -59,9 +62,9 @@ int main(int argc, char *argv[])
 		getData(configData, PCB, numProcesses);
 	}
 	calcCycleTime(configData, PCB, numProcesses);
-	createThread(PCB, numProcesses);
-
-	//createThread Loop
+	convertProcessName(PCB, numProcesses);
+	createThread(PCB, numProcesses, configData);
+	//duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
 	return 0;
 }
 
@@ -92,7 +95,8 @@ int getConfigData(const char* fileName, config* data)
 		fin.ignore(512, ':');
 		fin >> data->keyboardCycleTime;
 		fin.ignore(512, ':');
-		fin >> data->logTo;
+		fin.ignore(512, ' ');
+		getline(fin, data->logTo);
 		fin.ignore(512, ':');
 		fin >> data->logFilePath;
 		fin.close();
@@ -108,27 +112,22 @@ void calcCycleTime(config* cnfData, process* mdfData, int numProcesses)
 		if(strcmp(mdfData[i].state, "(harddrive)") == 0)
 		{
 			mdfData[i].cycleTime = (mdfData[i].burstTime * cnfData->hardDriveCycleTime) / 1000.0;
-			//mdfData[i].state = "hard drive";
 		}
 		else if(strcmp(mdfData[i].state, "(keyboard)") == 0)
 		{
 			mdfData[i].cycleTime = (mdfData[i].burstTime * cnfData->keyboardCycleTime) / 1000.0;
-			//mdfData[i].state = "keyboard";
 		}
 		else if(strcmp(mdfData[i].state, "(printer)") == 0)
 		{
 			mdfData[i].cycleTime = (mdfData[i].burstTime * cnfData->printerCycleTime) / 1000.0;
-			//mdfData[i].state = "printer";
 		}
 		else if(strcmp(mdfData[i].state, "(run)") == 0)
 		{
 			mdfData[i].cycleTime = (mdfData[i].burstTime * cnfData->processorCycleTime) / 1000.0;
-			//mdfData[i].state = "processor";
 		}
 		else if(strcmp(mdfData[i].state, "(monitor)") == 0)
 		{
 			mdfData[i].cycleTime = (mdfData[i].burstTime * cnfData->monitorDisplayTime) / 1000.0;
-			//mdfData[i].state = "monitor";
 		}
 		else
 		{
@@ -136,13 +135,6 @@ void calcCycleTime(config* cnfData, process* mdfData, int numProcesses)
 		}
 	}
 }
-
-/*Start Program Meta-Data Code:
-S(start)0; A(start)0; I(keyboard)6; O(printer)7; P(run)5; 
-P(run)10; I(keyboard)9; O(hard drive)10; I(hard drive)9; 
-O(hard drive)12; P(run)8; I(hard drive)9; P(run)15; O(hard drive)10; 
-I(keyboard)13; O(hard drive)10; P(run)14; A(end)0; S(end)0.
-End Program Meta-Data Code.*/
 
 int getData( config* cnfData, process* data, int &numProcesses)
 {
@@ -155,6 +147,8 @@ int getData( config* cnfData, process* data, int &numProcesses)
 		fileName[index] = cnfData->filePath[index];
 	}
 	fileName[index] = '\0';
+
+
     /*file pointer and open it*/
     ifstream fin;
     fin.open(fileName, ifstream::in);
@@ -165,7 +159,6 @@ int getData( config* cnfData, process* data, int &numProcesses)
         cout << "Unable to open file path" << endl;
         return 1;
     }
-    /*storing the data into the array*/
     else
     {
     	char stateCheck;
@@ -201,8 +194,6 @@ int getData( config* cnfData, process* data, int &numProcesses)
 			}
     	}
     }
-
-    /*Close the file after succesful reading*/
     fin.close();
     return 0;
 }
@@ -221,53 +212,238 @@ void* runIO(void* mdfData)
 	duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
 }
 
-int createThread(process* mdfData, int numProcesses)
+int createThread(process* mdfData, int numProcesses, config* cnfData)
 {
+
+	ofstream out;
+	if((cnfData->logTo == "Log to Both") || (cnfData->logTo == "Log to File"))
+	{
+		out.open((cnfData->logFilePath).c_str());
+	}
+
 	pthread_t t1;
 	process* needle;
 	runtime = clock();
 	cout << fixed;
 	cout << setprecision(6);
+
+	out << fixed;
+	out << setprecision(6);
+
 	duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
-	printf("%.6f - Simulator program starting\n", duration);
+	if(cnfData->logTo == "Log to Both")
+	{
+		out << duration << " - Simulator program starting" << endl;
+		cout << duration << " - Simulator program starting" << endl;
+	}
+	else if(cnfData->logTo == "Log to File")
+	{
+		out << duration << " - Simulator program starting" << endl;
+	}
+	else
+	{
+		cout << duration << " - Simulator program starting" << endl;
+	}
+	// printf("%.6f - Simulator program starting\n", duration);
+
 
 	for(int i = 0; i < numProcesses; i++)
 	{	
 		if(mdfData[i].pName == 'S' && (strcmp(mdfData[i].state, "(start)") == 0))
 		{
 			duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
-			cout << duration << " - OS: preparing process 1" << endl;
+			if(cnfData->logTo == "Log to Both")
+			{
+				out << duration << " - OS: preparing process 1" << endl;
+				cout << duration << " - OS: preparing process 1" << endl;
+			}
+			else if(cnfData->logTo == "Log to File")
+			{
+				out << duration << " - OS: preparing process 1" << endl;
+			}
+			else
+			{
+				cout << duration << " - OS: preparing process 1" << endl;
+			}
 		}
 		else if(mdfData[i].pName == 'A' && (strcmp(mdfData[i].state, "(start)") == 0))
 		{
 			duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
-			cout << duration << " - OS: starting process 1" << endl;
+			if(cnfData->logTo == "Log to Both")
+			{
+				out << duration << " - OS: starting process 1" << endl;
+				cout << duration << " - OS: starting process 1" << endl;
+			}
+			else if(cnfData->logTo == "Log to File")
+			{
+				out << duration << " - OS: starting process 1" << endl;
+			}
+			else
+			{
+				cout << duration << " - OS: starting process 1" << endl;
+			}
+			//cout << duration << " - OS: starting process 1" << endl;
 		}
 		else if(mdfData[i].pName == 'A' && (strcmp(mdfData[i].state, "(end)") == 0))
 		{
 			duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
-			cout << duration << " - OS: removing process 1" << endl;
-			cout << duration << " - Simulator program ending" << endl;
+			if(cnfData->logTo == "Log to Both")
+			{
+				out << duration << " - OS: removing process 1" << endl;
+				out << duration << " - Simulator program ending" << endl;
+				cout << duration << " - OS: removing process 1" << endl;
+				cout << duration << " - Simulator program ending" << endl;
+
+			}
+			else if(cnfData->logTo == "Log to File")
+			{
+				out << duration << " - OS: removing process 1" << endl;
+				out << duration << " - Simulator program ending" << endl;
+
+			}
+			else
+			{
+				cout << duration << " - OS: removing process 1" << endl;
+				cout << duration << " - Simulator program ending" << endl;
+
+			}
 		}
 		else
 		{
 			duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
-			//printing out 6 decimal points every time
-			cout << duration << " - Process 1: start" << mdfData[i].state << "input" << endl;
-			if(mdfData[i].pName == 'I' || mdfData[i].pName == 'O')
+			needle = &(mdfData[i]);
+			if(mdfData[i].pName == 'I')
 			{
-				*needle = mdfData[i];
+				if(cnfData->logTo == "Log to Both")
+				{
+					out << duration << " - Process 1: start " << mdfData[i].stateName << " input" << endl;
+					cout << duration << " - Process 1: start " << mdfData[i].stateName << " input" << endl;
+				}
+				else if(cnfData->logTo == "Log to File")
+				{
+					out << duration << " - Process 1: start " << mdfData[i].stateName << " input" << endl;
+				}
+				else
+				{
+					cout << duration << " - Process 1: start " << mdfData[i].stateName << " input" << endl;
+				}
 
 				pthread_create(&t1, NULL, runIO, (void*)needle);
 				pthread_join(t1, NULL);
-				printf("%.6f - Process 1: end %s input\n", duration, mdfData[i].state);
+
+				if(cnfData->logTo == "Log to Both")
+				{
+					out << duration << " - Process 1: end " << mdfData[i].stateName << " input" << endl;
+					cout << duration << " - Process 1: end " << mdfData[i].stateName << " input" << endl;
+				}
+				else if(cnfData->logTo == "Log to File")
+				{
+					out << duration << " - Process 1: end " << mdfData[i].stateName << " input" << endl;
+				}
+				else
+				{
+					cout << duration << " - Process 1: end " << mdfData[i].stateName << " input" << endl;
+				}
+
 			}
-			else
+			else if(mdfData[i].pName == 'O')
 			{
+				if(cnfData->logTo == "Log to Both")
+				{
+					out << duration << " - Process 1: start " << mdfData[i].stateName << " output" << endl;
+					cout << duration << " - Process 1: start " << mdfData[i].stateName << " output" << endl;
+				}
+				else if(cnfData->logTo == "Log to File")
+				{
+					out << duration << " - Process 1: start " << mdfData[i].stateName << " output" << endl;
+				}
+				else
+				{
+					cout << duration << " - Process 1: start " << mdfData[i].stateName << " output" << endl;
+				}
+
+				pthread_create(&t1, NULL, runIO, (void*)needle);
+				pthread_join(t1, NULL);
+
+				if(cnfData->logTo == "Log to Both")
+				{
+					out << duration << " - Process 1: end " << mdfData[i].stateName << " output" << endl;
+					cout << duration << " - Process 1: end " << mdfData[i].stateName << " output" << endl;
+				}
+				else if(cnfData->logTo == "Log to File")
+				{
+					out << duration << " - Process 1: end " << mdfData[i].stateName << " output" << endl;
+				}
+				else
+				{
+					cout << duration << " - Process 1: end " << mdfData[i].stateName << " output" << endl;
+				}
+			}
+			else //if(mdfData[i].pName == 'P')
+			{
+				if(cnfData->logTo == "Log to Both")
+				{
+					out << duration << " - Process 1: start " << mdfData[i].stateName << " action" << endl;
+					cout << duration << " - Process 1: start " << mdfData[i].stateName << " action" << endl;
+				}
+				else if(cnfData->logTo == "Log to File")
+				{
+					out << duration << " - Process 1: start " << mdfData[i].stateName << " action" << endl;
+				}
+				else
+				{
+					cout << duration << " - Process 1: start " << mdfData[i].stateName << " action" << endl;
+				}
+
 				duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
-				printf("%.6f - Process 1: end %s input\n", duration, mdfData[i].state);
+
+				if(cnfData->logTo == "Log to Both")
+				{
+					out << duration << " - Process 1: end " << mdfData[i].stateName << " action" << endl;
+					cout << duration << " - Process 1: end " << mdfData[i].stateName << " action" << endl;
+				}
+				else if(cnfData->logTo == "Log to File")
+				{
+					out << duration << " - Process 1: end " << mdfData[i].stateName << " action" << endl;
+				}
+				else
+				{
+					cout << duration << " - Process 1: end " << mdfData[i].stateName << " action" << endl;
+				}
 			}
 		}
 			
+	}
+}
+
+
+void convertProcessName(process* mdfData, int numProcesses)
+{
+	for(int i = 0; i < numProcesses; i++)
+	{
+		if(strcmp(mdfData[i].state, "(harddrive)") == 0)
+		{
+			mdfData[i].stateName = "hard drive";
+		}
+		else if(strcmp(mdfData[i].state, "(keyboard)") == 0)
+		{
+			mdfData[i].stateName = "keyboard";
+		}
+		else if(strcmp(mdfData[i].state, "(printer)") == 0)
+		{
+			mdfData[i].stateName = "printer";
+		}
+		else if(strcmp(mdfData[i].state, "(run)") == 0)
+		{
+			mdfData[i].stateName = "processing";
+		}
+		else if(strcmp(mdfData[i].state, "(monitor)") == 0)
+		{
+			mdfData[i].stateName = "monitor";
+		}
+		else
+		{
+			mdfData[i].stateName = "EMPTY";
+		}
 	}
 }
