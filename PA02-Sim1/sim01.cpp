@@ -77,8 +77,11 @@ int main(int argc, char *argv[])
 	createThread(PCB, numProcesses, configData);
 	return 0;
 }
+///////////////////////////////////////////////////////////////////////
+
 
 //@function: reading in the config data/////////////////////////////
+/*checks if the file is okay, if not, then print an error, else, read in the data from a file into the struct components*/
 int getConfigData(const char* fileName, config* data)
 {
 	ifstream fin;
@@ -120,6 +123,8 @@ int getConfigData(const char* fileName, config* data)
 
 
 //@function: finding out how long each cycle time should be for, depending on the config file//////////
+/*takes in our config data, our mdf data, and the number of processes we have, then calculates the cycletime for each
+state we have*/
 void calcCycleTime(config* cnfData, process* mdfData, int numProcesses)
 {	
 	int index;
