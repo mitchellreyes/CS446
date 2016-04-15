@@ -27,7 +27,7 @@ class metaData{
         float getCycleTime();
 
         void readData(ifstream&);
-        void printData(float, int, int, ofstream&);
+        void printData(float, int, int, ofstream&, int&);
 
     private:
         char SAIPO_letter;

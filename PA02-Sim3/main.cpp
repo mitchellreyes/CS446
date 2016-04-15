@@ -20,12 +20,11 @@ clock_t runtime;
 float duration = 0.000000;
 
 void* runIO(void* mdfData);
-void runProcesses(queue<metaData> &mdfData, queue< queue<metaData> > &PCB, int whereTo, ofstream &out);
+void runProcesses(queue< queue<metaData> > &PCB, int whereTo, ofstream &out);
 void printNode(metaData mdfData);
 float calcCycleTime(int initialTime, string state, configData cnfData);
 void get_mdfData(configData cnfData, queue< queue<metaData> > &PCB);
 void getConfigData(const char* fileName, configData &cnfData);
-void printPCB(queue< queue<metaData> > &PCB, queue<metaData> &mdfData);
 void clearQueue(queue<metaData> &mdfData);
 
 
@@ -47,25 +46,8 @@ int main(int argc, char *argv[])
 		out.open((cnfData.logFilePath).c_str());
 	}
 	get_mdfData(cnfData, PCB);
-	//printPCB(PCB, mdfData);
-	//runProcesses(mdfData, PCB, whereToLog, out);
+	runProcesses(PCB, whereToLog, out);
 	return 0;
-}
-
-void printPCB(queue< queue<metaData> > &PCB, queue<metaData> &mdfData)
-{
-	int a = 1;
-	while(!PCB.empty())
-	{
-		cout << "BLOCK " << a << ": " << endl;
-		while(!mdfData.empty())
-		{
-			printNode(mdfData.front());
-			mdfData.pop();
-		}
-		PCB.pop();
-		a++;
-	}
 }
 
 void* runIO(void* mdfData)
@@ -89,41 +71,74 @@ void* runIO(void* mdfData)
 	return NULL;
 }
 
-void runProcesses(queue<metaData> &mdfData, queue< queue<metaData> > &PCB, int whereTo, ofstream &out)
+void runProcesses(queue< queue<metaData> > &PCB, int whereTo, ofstream &out)
 {
 	metaData* needle;
+	queue<metaData> readyQueue;
 	pthread_t t1;
 	runtime = clock();
-	int numProcess = 1;
+	int numProcess = 0;
 	duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
-
-	cout << fixed << setprecision(6) << duration << " - Simulator program starting" << endl;
-	printNode(mdfData.front());
-	mdfData.pop();
+	cout << fixed << setprecision(6);
+	out << fixed << setprecision(6);
+	if(whereTo == LTF || whereTo == LTB)
+	{
+		out << duration << " - Simulator program starting" << endl;
+		duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
+		out << duration << " - OS: preparing all processes" << endl;
+	}
+	if(whereTo == LTM || whereTo == LTB)
+	{
+		cout << duration << " - Simulator program starting" << endl;
+		duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
+		cout << duration << " - OS: preparing all processes" << endl;
+	}
+	
 	PCB.pop();
-	printNode(mdfData.front());
-
 	while(!PCB.empty())
 	{
-		cout << "STARTING PROCESS " << numProcess << ": " << endl;
-		while(!mdfData.empty())
+		readyQueue = PCB.front();
+		while(!readyQueue.empty())
 		{
-			/*if((mdfData.front()).SAIPO_letter == 'A')
+			if(((readyQueue.front()).getLetter() == 'A') && (readyQueue.front()).getState() == "start")
 			{
-
-			}*/
-			needle = &(mdfData.front());
-			duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
-
-			(mdfData.front()).printData(duration, START, whereTo, out);
-			pthread_create(&t1, NULL, runIO, (void*)needle);
-			pthread_join(t1, NULL);
-			(mdfData.front()).printData(duration, END, whereTo, out);
-			mdfData.pop();
+				duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
+				if(whereTo == LTF || whereTo == LTB)
+				{
+					out << duration << " - OS: Selecting next process" << endl;
+				}
+				if(whereTo == LTM || whereTo == LTB)
+				{
+					cout << duration << " - OS: Selecting next process" << endl;
+				}
+				duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
+				(readyQueue.front()).printData(duration, START, whereTo, out, numProcess);
+				readyQueue.pop();
+			}
+			else
+			{
+				needle = &(readyQueue.front());
+				duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
+				(readyQueue.front()).printData(duration, START, whereTo, out, numProcess);
+				pthread_create(&t1, NULL, runIO, (void*)needle);
+				pthread_join(t1, NULL);
+				(readyQueue.front()).printData(duration, END, whereTo, out, numProcess);
+				if(readyQueue.front().getLetter() == 'A' && readyQueue.front().getState() == "end")
+				{
+					if(whereTo == LTF || whereTo == LTB)
+					{
+						out << duration << " - OS: removing process " << numProcess << endl;
+					}
+					if(whereTo == LTM || whereTo == LTB)
+					{
+						cout << duration << " - OS: removing process " << numProcess << endl;
+					}
+				}
+				readyQueue.pop();
+			}
 		}
-		cout << "EMPTY INNER MDFQUEUEU" << endl;
 		PCB.pop();
-		numProcess++;
+		//numProcess++;
 	}//end of while statement
 }//end of function
 
@@ -172,10 +187,6 @@ void get_mdfData(configData cnfData, queue< queue<metaData> > &PCB)
     ifstream fin;
     fin.open((cnfData.filePath).c_str(), ifstream::in);
     queue<metaData> mdfData;
-    //int processNum = 0;
-    // char SAIPO;
-    // string deviceName;
-    // int cycles;
 
     if(!fin.good())
     {
@@ -184,7 +195,7 @@ void get_mdfData(configData cnfData, queue< queue<metaData> > &PCB)
     }
     else
     {
-		cout << "\tREADING DATA FROM: " << cnfData.filePath << endl << endl;
+		cout << "\tREADING DATA FROM: " << cnfData.filePath << endl;
 		metaData processInfo;
 		fin.ignore(512, ':');
 		while(fin.good())
@@ -194,19 +205,12 @@ void get_mdfData(configData cnfData, queue< queue<metaData> > &PCB)
 				processInfo.readData(fin);
 				processInfo.setCycleTime(calcCycleTime(processInfo.getInitialTime(), processInfo.getState(), cnfData));
 				mdfData.push(processInfo);
-			}while(processInfo.getLetter() != 'S' && (processInfo.getLetter() != 'A' && processInfo.getState() != "end"));
+			}while(processInfo.getLetter() != 'S' && processInfo.getState() != "end");
 
-			//if(processInfo.getLetter() == 'S' && (processInfo.getState() == "start" || processInfo.getState() == "end"))
-			//{
-				PCB.push(mdfData);
-				clearQueue(mdfData);
-			// } 
-			// else if(processInfo.getLetter() == 'A' && processInfo.getState() == "end")
-			// {
-			// 	PCB.push(mdfData);
-			// 	clearQueue(mdfData);
-			// }
+			PCB.push(mdfData);
+			clearQueue(mdfData);
 		}
+		cout << "\t\t SUCCESS" << endl << endl;
 		fin.close();
     }	
 }
@@ -230,7 +234,7 @@ void getConfigData(const char* fileName, configData &cnfData)
 	}
 	else
 	{
-		cout << endl << "\tREADING DATA FROM: " << fileName << endl << endl;
+		cout << endl << "\tREADING DATA FROM: " << fileName << endl;
 		//read in all the data to the different config struct components
 		fin.ignore(512, ':');
 		fin >> cnfData.phase;
@@ -256,6 +260,8 @@ void getConfigData(const char* fileName, configData &cnfData)
 		fin.ignore(512, ':');
 		fin >> cnfData.logFilePath;
 		fin.close();
+		cout << "\t\tSUCCESS" << endl << endl;
+
 	}
 }
 

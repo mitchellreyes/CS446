@@ -1,0 +1,12 @@
+0.000003 - Simulator program starting
+0.000182 - OS: preparing all processes
+0.000342 - OS: Selecting next process
+0.000450 - OS: starting process 1
+4.388787 - OS: removing process 1
+4.388889 - OS: Selecting next process
+4.388926 - OS: starting process 2
+8.176960 - OS: removing process 2
+8.177062 - OS: Selecting next process
+8.177093 - OS: starting process 3
+11.995691 - OS: removing process 3
+11.995796 - Simulator program ending

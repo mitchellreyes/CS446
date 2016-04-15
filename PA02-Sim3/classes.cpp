@@ -58,7 +58,7 @@ float metaData::getCycleTime()
 	fin.ignore(512, ';');
  }
 
-void metaData::printData(float duration, int startOrEnd, int whereTo, ofstream &out)
+void metaData::printData(float duration, int startOrEnd, int whereTo, ofstream &out, int &pNum)
 {
 	cout << fixed;
 	cout << setprecision(6);
@@ -74,37 +74,49 @@ void metaData::printData(float duration, int startOrEnd, int whereTo, ofstream &
 		}
 		exit(0);
 	}
+	if(SAIPO_letter == 'A' && state == "start")
+	{
+		pNum++;
+		if(whereTo == LTF || whereTo == LTB)
+		{
+			out << duration << " - OS: starting process " << pNum << endl;
+		}
+		if(whereTo == LTM || whereTo == LTB)
+		{
+			cout << duration << " - OS: starting process " << pNum << endl;
+		}
+	}
 	if(SAIPO_letter == 'I')
 	{
 		if(startOrEnd == 0)
 		{
-			cout << duration << " - Process 1: start " << state << " input" << endl;
+			cout << duration << " - Process " << pNum << ": start " << state << " input" << endl;
 		}
 		else
 		{
-			cout << duration << " - Process 1: end " << state << " input" << endl;
+			cout << duration << " - Process " << pNum << ": end " << state << " input" << endl;
 		}
 	}
 	if(SAIPO_letter == 'P')
 	{
 		if(startOrEnd == 0)
 		{
-			cout << duration << " - Process 1: start " << state << " action" << endl;
+			cout << duration << " - Process " << pNum << ": start " << state << " action" << endl;
 		}
 		else
 		{
-			cout << duration << " - Process 1: end " << state << " action" << endl;
+			cout << duration << " - Process " << pNum << ": end " << state << " action" << endl;
 		}
 	}
 	if(SAIPO_letter == 'O')
 	{
 		if(startOrEnd == 0)
 		{
-			cout << duration << " - Process 1: start " << state << " output" << endl;
+			cout << duration << " - Process " << pNum << ": start " << state << " output" << endl;
 		}
 		else
 		{
-			cout << duration << " - Process 1: end " << state << " output" << endl;
+			cout << duration << " - Process " << pNum << ": end " << state << " output" << endl;
 		}
 	}
 }
