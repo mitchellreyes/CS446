@@ -1,15 +1,18 @@
 #include <iostream>
 #include <queue>
 #include <fstream>
-#include <stdlib.h>
+//#include <stdlib.h>
 #include <time.h>
 #include <iomanip>
 #include <pthread.h>
 #include "classes.h"
 
-#define leftOpenParenthesis '('
-#define rightClosedParenthesis ')'
 #define MSEC 1000.0
+#define START 0
+#define END 1
+#define LTB 100
+#define LTM 200
+#define LTF 300
 
 using namespace std;
 
@@ -17,22 +20,52 @@ clock_t runtime;
 float duration = 0.000000;
 
 void* runIO(void* mdfData);
-void runProcesses(queue<metaData> &mdfData);
+void runProcesses(queue<metaData> &mdfData, queue< queue<metaData> > &PCB, int whereTo, ofstream &out);
 void printNode(metaData mdfData);
 float calcCycleTime(int initialTime, string state, configData cnfData);
-void get_mdfData(configData cnfData, queue<metaData> &mdfData);
+void get_mdfData(configData cnfData, queue< queue<metaData> > &PCB);
 void getConfigData(const char* fileName, configData &cnfData);
+void printPCB(queue< queue<metaData> > &PCB, queue<metaData> &mdfData);
+void clearQueue(queue<metaData> &mdfData);
+
+
 
 
 int main(int argc, char *argv[])
 {
+	queue< queue<metaData> > PCB; 
 	queue<metaData> mdfData;
+	queue<metaData> blocked;
 	configData cnfData;
+	int whereToLog;
+	ofstream out;
 
 	getConfigData(argv[1], cnfData);
-	get_mdfData(cnfData, mdfData);
-	runProcesses(mdfData);
+	whereToLog = cnfData.whereToLog();
+	if(whereToLog == LTB || whereToLog == LTF)
+	{
+		out.open((cnfData.logFilePath).c_str());
+	}
+	get_mdfData(cnfData, PCB);
+	//printPCB(PCB, mdfData);
+	//runProcesses(mdfData, PCB, whereToLog, out);
 	return 0;
+}
+
+void printPCB(queue< queue<metaData> > &PCB, queue<metaData> &mdfData)
+{
+	int a = 1;
+	while(!PCB.empty())
+	{
+		cout << "BLOCK " << a << ": " << endl;
+		while(!mdfData.empty())
+		{
+			printNode(mdfData.front());
+			mdfData.pop();
+		}
+		PCB.pop();
+		a++;
+	}
 }
 
 void* runIO(void* mdfData)
@@ -44,7 +77,7 @@ void* runIO(void* mdfData)
 	//stamp the duration again
 	duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
 	//holding what time we have to stop at
-	float stopTime = (myData->cycleTime);
+	float stopTime = (myData->getCycleTime());
 	//wait for the timer to hit the stop time
 	while((duration - threadTime) < stopTime)
 	{
@@ -56,88 +89,50 @@ void* runIO(void* mdfData)
 	return NULL;
 }
 
-void runProcesses(queue<metaData> &mdfData)
+void runProcesses(queue<metaData> &mdfData, queue< queue<metaData> > &PCB, int whereTo, ofstream &out)
 {
 	metaData* needle;
-
-	ofstream out;
-// 	int index;
-// 	int whereTo = 0;
-// 	int blockNum = 0;
-// 	//if we need to write our info to a file
-
-// 	if(cnfData->logTo == "Log to Both")
-// 	{
-// 		whereTo = LTB;
-// 		out.open((cnfData->logFilePath).c_str());
-// 	}
-// 	else if(cnfData->logTo == "Log to File")
-// 	{
-// 		whereTo = LTF;
-// 		out.open((cnfData->logFilePath).c_str());
-// 	}
-// 	else
-// 	{
-// 		whereTo = LTM;
-// 	}
-
 	pthread_t t1;
-	//duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
-//starting our clock variable
-	cout << fixed;
-	cout << setprecision(6);
-
 	runtime = clock();
+	int numProcess = 1;
 	duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
-	cout << duration << " - Simulator program starting" << endl;
-	mdfData.pop();
-	while(!mdfData.empty())
-	{
-		if((mdfData.front()).SAIPO_letter == 'S')
-		{
-			duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
-			cout << duration << " - Simulator program ending" << endl;
-			exit(0);
-		}
-		/*if((mdfData.front()).SAIPO_letter == 'A')
-		{
 
-		}*/
-		needle = &(mdfData.front());
-		if((mdfData.front()).SAIPO_letter == 'I')
+	cout << fixed << setprecision(6) << duration << " - Simulator program starting" << endl;
+	printNode(mdfData.front());
+	mdfData.pop();
+	PCB.pop();
+	printNode(mdfData.front());
+
+	while(!PCB.empty())
+	{
+		cout << "STARTING PROCESS " << numProcess << ": " << endl;
+		while(!mdfData.empty())
 		{
-			// check where to log start info
-			// writeInfo('I', START, whereTo, mdfData, index, out, blockNum);
-			cout << duration << " - Process 1: start " << (mdfData.front()).state << " input" << endl;
+			/*if((mdfData.front()).SAIPO_letter == 'A')
+			{
+
+			}*/
+			needle = &(mdfData.front());
+			duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
+
+			(mdfData.front()).printData(duration, START, whereTo, out);
 			pthread_create(&t1, NULL, runIO, (void*)needle);
 			pthread_join(t1, NULL);
-			cout << duration << " - Process 1: end " << (mdfData.front()).state << " input" << endl;
-			// writeInfo('I', END, whereTo, mdfData, index, out, blockNum);
+			(mdfData.front()).printData(duration, END, whereTo, out);
+			mdfData.pop();
 		}
-		else if((mdfData.front()).SAIPO_letter == 'P')
-		{
-			cout << duration << " - Process 1: start " << (mdfData.front()).state << " action" << endl;
-			pthread_create(&t1, NULL, runIO, (void*)needle);
-			pthread_join(t1, NULL);
-			cout << duration << " - Process 1: end " << (mdfData.front()).state << " action" << endl;
-		}
-		else if((mdfData.front()).SAIPO_letter == 'O')
-		{
-			cout << duration << " - Process 1: start " << (mdfData.front()).state << " output" << endl;
-			pthread_create(&t1, NULL, runIO, (void*)needle);
-			pthread_join(t1, NULL);
-			cout << duration << " - Process 1: end " << (mdfData.front()).state << " output" << endl;
-		}
-		mdfData.pop();
+		cout << "EMPTY INNER MDFQUEUEU" << endl;
+		PCB.pop();
+		numProcess++;
 	}//end of while statement
 }//end of function
 
 void printNode(metaData mdfData)
 {
-	cout << "SAIPO_letter: " << mdfData.SAIPO_letter << endl;
-	cout << "\tState: " << mdfData.state << endl;
-	cout << "\tInitial Time: " << mdfData.initialTime << endl;
-	cout << "\tCycle Time: " << mdfData.cycleTime << endl << endl; 
+	cout << "SAIPO_letter: " << mdfData.getLetter() << endl;
+	cout << "\tState: " << mdfData.getState() << endl;
+	cout << "\tInitial Time: " << mdfData.getInitialTime() << endl;
+	cout << "\tCycle Time: " << mdfData.getCycleTime() << endl << endl; 
 }
 
 float calcCycleTime(int initialTime, string state, configData cnfData)
@@ -156,7 +151,7 @@ float calcCycleTime(int initialTime, string state, configData cnfData)
 	{
 		timeMultiple = cnfData.printerCycleTime;
 	}
-	else if(state == "run")
+	else if(state == "processing")
 	{
 		timeMultiple = cnfData.processorCycleTime;
 	}
@@ -172,14 +167,15 @@ float calcCycleTime(int initialTime, string state, configData cnfData)
 	return (initialTime * timeMultiple) / MSEC;
 }
 
-void get_mdfData(configData cnfData, queue<metaData> &mdfData)
+void get_mdfData(configData cnfData, queue< queue<metaData> > &PCB)
 {
     ifstream fin;
     fin.open((cnfData.filePath).c_str(), ifstream::in);
-
-    char SAIPO;
-    string deviceName;
-    int cycles;
+    queue<metaData> mdfData;
+    //int processNum = 0;
+    // char SAIPO;
+    // string deviceName;
+    // int cycles;
 
     if(!fin.good())
     {
@@ -193,20 +189,34 @@ void get_mdfData(configData cnfData, queue<metaData> &mdfData)
 		fin.ignore(512, ':');
 		while(fin.good())
 		{
-			fin >> SAIPO;
-			processInfo.setLetter(SAIPO);
-			fin.ignore(512, leftOpenParenthesis);
-			getline(fin, deviceName, rightClosedParenthesis);
-			processInfo.setState(deviceName);
-			fin >> cycles;
-			processInfo.setInitialTime(cycles);
-			processInfo.setCycleTime(calcCycleTime(cycles, deviceName, cnfData));
-			fin.ignore(512, ';');
-			//printNode(processInfo);
-			mdfData.push(processInfo);
+			do
+			{
+				processInfo.readData(fin);
+				processInfo.setCycleTime(calcCycleTime(processInfo.getInitialTime(), processInfo.getState(), cnfData));
+				mdfData.push(processInfo);
+			}while(processInfo.getLetter() != 'S' && (processInfo.getLetter() != 'A' && processInfo.getState() != "end"));
+
+			//if(processInfo.getLetter() == 'S' && (processInfo.getState() == "start" || processInfo.getState() == "end"))
+			//{
+				PCB.push(mdfData);
+				clearQueue(mdfData);
+			// } 
+			// else if(processInfo.getLetter() == 'A' && processInfo.getState() == "end")
+			// {
+			// 	PCB.push(mdfData);
+			// 	clearQueue(mdfData);
+			// }
 		}
 		fin.close();
     }	
+}
+
+void clearQueue(queue<metaData> &mdfData)
+{
+	while(!mdfData.empty())
+	{
+		mdfData.pop();
+	}
 }
 
 void getConfigData(const char* fileName, configData &cnfData)
