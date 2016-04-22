@@ -254,57 +254,57 @@ void runProcesses(deque<process> &PCB_queue, ofstream &out, configData cnfData, 
 				delete tempProcess;
 			}
 
-			//check the thread timings if anything is done
-			while(!threadTimeFinishedQueue.empty())
-			{
-				//if something is done
-				//find the parent in the blocked queue
-				int parentIndex = findParentProcess(threadTimeFinishedQueue.front());
-				if(parentIndex == -1)
-				{
-					cout << "An error has occured with finding a thread's process" << endl;
-					exit(1);
-				}
-				tempProcess = new process();
-				*tempProcess = copyProcess(blockedQueue[parentIndex]);
-				//remove it from the blocked queue
-				blockedQueue.erase(blockedQueue.begin() + parentIndex);
-				//return the process back into the PCB_queue
-				PCB_queue.push_back(*tempProcess);
-				PCB_queue.pop_front();
-				delete tempProcess;
-			}
+			// //check the thread timings if anything is done
+			// while(!threadTimeFinishedQueue.empty())
+			// {
+			// 	//if something is done
+			// 	//find the parent in the blocked queue
+			// 	int parentIndex = findParentProcess(threadTimeFinishedQueue.front());
+			// 	if(parentIndex == -1)
+			// 	{
+			// 		cout << "An error has occured with finding a thread's process" << endl;
+			// 		exit(1);
+			// 	}
+			// 	tempProcess = new process();
+			// 	*tempProcess = copyProcess(blockedQueue[parentIndex]);
+			// 	//remove it from the blocked queue
+			// 	blockedQueue.erase(blockedQueue.begin() + parentIndex);
+			// 	//return the process back into the PCB_queue
+			// 	PCB_queue.push_back(*tempProcess);
+			// 	PCB_queue.pop_front();
+			// 	delete tempProcess;
+			// }
 		}//end of inner while loop
 
 		//pop from PCB_queue;
 		//PCB_queue.pop_front();
 
 		//if PCB_queue is empty && blockedQueue is NOT empty
-		if(PCB_queue.empty() && !blockedQueue.empty())
-		{
-			//print IDLE CPU
-			cout << "IDLE CPU" << endl;
-			//wait until something is in thread timings
-			//while(threadTimeFinishedQueue.empty());
-			while(!threadTimeFinishedQueue.empty())
-			{
-				//if something is done
-				//find the parent in the blocked queue
-				int parentIndex = findParentProcess(threadTimeFinishedQueue.front());
-				if(parentIndex == -1)
-				{
-					cout << "An error has occured with finding a thread's process" << endl;
-					exit(1);
-				}
-				tempProcess = new process();
-				*tempProcess = copyProcess(blockedQueue[parentIndex]);
-				//remove it from the blocked queue
-				blockedQueue.erase(blockedQueue.begin() + parentIndex);
-				//return the process back into the PCB_queue
-				PCB_queue.push_back(*tempProcess);
-				delete tempProcess;
-			}
-		}
+		// if(PCB_queue.empty() && !blockedQueue.empty())
+		// {
+		// 	//print IDLE CPU
+		// 	cout << "IDLE CPU" << endl;
+		// 	//wait until something is in thread timings
+		// 	//while(threadTimeFinishedQueue.empty());
+		// 	while(!threadTimeFinishedQueue.empty())
+		// 	{
+		// 		//if something is done
+		// 		//find the parent in the blocked queue
+		// 		int parentIndex = findParentProcess(threadTimeFinishedQueue.front());
+		// 		if(parentIndex == -1)
+		// 		{
+		// 			cout << "An error has occured with finding a thread's process" << endl;
+		// 			exit(1);
+		// 		}
+		// 		tempProcess = new process();
+		// 		*tempProcess = copyProcess(blockedQueue[parentIndex]);
+		// 		//remove it from the blocked queue
+		// 		blockedQueue.erase(blockedQueue.begin() + parentIndex);
+		// 		//return the process back into the PCB_queue
+		// 		PCB_queue.push_back(*tempProcess);
+		// 		delete tempProcess;
+		// 	}
+		// }
 
 	}//end of outer while loop
 }//end of function
