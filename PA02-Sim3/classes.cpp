@@ -1,5 +1,15 @@
 #include "classes.h"
 
+metaData::metaData()
+{
+
+}
+
+metaData::~metaData()
+{
+
+}
+
 void metaData::setLetter(char a)
 {
 	SAIPO_letter = a;
@@ -43,6 +53,11 @@ int metaData::getInitialTime()
 float metaData::getCycleTime()
 {
 	return cycleTime;
+}
+
+int metaData::getProcessNum()
+{
+	return processNum;
 }
 
  void metaData::readData(ifstream &fin)
@@ -120,6 +135,46 @@ void metaData::printData(float duration, int startOrEnd, int whereTo, ofstream &
 		}
 	}
 }
+
+process::process()
+{
+	processID = -1;
+}
+
+process::~process()
+{
+	actionQueue.clear();
+	processID = -1;
+}
+
+void process::setProcessID(int num)
+{
+	processID = num;
+}
+
+int process::getProcessID()
+{
+	return processID;
+}
+
+void process::copyActionQueue(deque<metaData> &rhs)
+{
+	metaData* tmp;
+	unsigned int index = 0;
+	while(index != rhs.size()-1)
+	{
+		tmp = new metaData();
+		tmp->setLetter(rhs[index].getLetter());
+		tmp->setState(rhs[index].getState());
+		tmp->setInitialTime(rhs[index].getInitialTime());
+		tmp->setCycleTime(rhs[index].getCycleTime());
+		tmp->setProcessNum(rhs[index].getProcessNum());
+		actionQueue.push_back(*tmp);
+		delete tmp;
+		index++;
+	}
+}
+
 
 int configData::whereToLog()
 {

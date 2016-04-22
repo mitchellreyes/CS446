@@ -28,8 +28,8 @@ void get_mdfData(configData cnfData, deque<process> &PCB_queue, int &numberOfAct
 void getConfigData(const char* fileName, configData &cnfData);
 void runQuantum(float quantum);
 int findParentProcess(metaData child);
-deque<process> copyProcess(deque<process> &rhs);
-metaData copyAction(metaData &mdfData);
+deque<process> copyProcess(deque<process> rhs);
+metaData copyAction(metaData mdfData);
 
 deque<metaData> threadTimeFinishedQueue;
 deque<process> blockedQueue;
@@ -79,7 +79,6 @@ void* runIO(void* mdfData)
 	*sendOut = copyAction(*myData);
 	threadTimeFinishedQueue.push_back(*sendOut);
 	delete sendOut;
-	pthread_exit(NULL);
 	return NULL;
 }
 
@@ -100,16 +99,15 @@ void runQuantum(float quantum)
 	quantumRunning = false;
 }
 
-process copyProcess(process &rhs)
+process copyProcess(process rhs)
 {
-	process copy;
-	copy.setProcessID(rhs.getProcessID());
-	copy.copyActionQueue(rhs.actionQueue);
-	return copy;
-
+	process* copiedPCB = new process();
+	copiedPCB->actionQueue = rhs.actionQueue;
+	copiedPCB->setProcessID(rhs.getProcessID());
+	return *copiedPCB;
 }
 
-metaData copyAction(metaData &mdfData)
+metaData copyAction(metaData mdfData)
 {
 	metaData copy;
 	copy.setLetter(mdfData.getLetter());
@@ -126,7 +124,7 @@ int findParentProcess(metaData child)
 	unsigned int index;
 	for(index = 0; index < blockedQueue.size(); index++)
 	{
-		if((blockedQueue[index]).getProcessID() == child.getProcessNum())
+		if(blockedQueue[index].getProcessID() == child.getProcessNum())
 		{
 			return index;
 		}
@@ -138,175 +136,146 @@ int findParentProcess(metaData child)
 
 void runProcesses(deque<process> &PCB_queue, ofstream &out, configData cnfData, int numberOfActions)
 {
-	pthread_t threads[5000];
+	pthread_t threads[numberOfActions];
 	int threadCount = 0;
 	metaData* needle;
-
-	deque<metaData>* peekActionQ;
-	metaData* peekAction;
-
-	process* tempProcess;
-
+	int parentIndex;
+	process* placeInPCB_queue;
+	metaData* current_action;
+	process copied_current_process;
 	cout << setprecision(6) << fixed;
 	runtime = clock();
 	duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
 
+	current_action = new metaData();
+	*current_action = copyAction(PCB_queue.front().actionQueue.front());
+	PCB_queue.front().actionQueue.pop_front();
+	copied_current_process = copyProcess(PCB_queue.front());
+	PCB_queue.pop_front();
 
-	//while PCB_queue is not empty OR blockedQueue is not empty
-	while(!PCB_queue.empty() || !blockedQueue.empty())
+	while(!PCB_queue.empty())
 	{
-		//get the queue (A) from PCB_queue.front()
-		peekActionQ = &(PCB_queue.front().actionQueue);
-		//while A is not empty
-		while(!peekActionQ->empty())
+		printNode(*current_action);
+
+		if(current_action->getLetter() == 'S' && current_action->getState() == "start")
 		{
-			//get the action from A (A.front())
-			peekAction = &(peekActionQ->front());
-					printNode(*peekAction);
 
-			//record how long it took for us to get here
+			cout << duration << " - OS: preparing all processes" << endl;
 			duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
+			cout << duration << " - OS: selecting next process" << endl;
 
-			//if 'S' and "start"
-			if(peekAction->getLetter() == 'S')
+		}
+		else if(current_action->getLetter() == 'S' && current_action->getState() == "end")
+		{
+			if(blockedQueue.empty() && threadTimeFinishedQueue.empty() && PCB_queue.empty() && (quantumRunning == false))
 			{
-				if(peekAction->getState() == "start")
-				{
-					//print stuff
-					cout << duration << " - OS: preparing all processes" << endl;
-					//pop from A
-					PCB_queue.pop_front();
-				}
-				else //if(peekAction.getLetter() == 'S' && peekAction.getState() == "end")
-				{
-					//check all the queues and quantum to see if the program is done
-					if(blockedQueue.empty() && ((PCB_queue.size()-1) <= 0))
-					{
-						cout << duration << " - Simulator program ending" << endl;
-						exit(0);
-					}
-					else
-					{
-						//if not, push the end process block back on to the PCB_queue
-						tempProcess = new process();
-						*tempProcess = copyProcess(PCB_queue.front());
-						PCB_queue.push_back(*tempProcess);
-						PCB_queue.pop_front();
-						delete tempProcess;
-					}
-				}
+				cout << duration << " - Simulator program ending" << endl;
+				exit(0);
 			}
-			else if(peekAction->getLetter() == 'A')
+			else
 			{
-				if(peekAction->getState() == "start")
-				{
-					//print stuff
-					cout << duration << " - OS: starting process " << PCB_queue.front().getProcessID() << endl;
-					peekActionQ->pop_front();
-				}
-				else //if 'A' and "end"
-				{
-					//print stuff
-					cout << duration << " - OS: removing process " << PCB_queue.front().getProcessID() << endl;
-					PCB_queue.pop_front();
-				}
-				//pop from A
-
+				copied_current_process.actionQueue.push_back(*current_action);
+				PCB_queue.push_back(copied_current_process);
+				delete current_action;
 			}
-			else if(peekAction->getLetter() == 'P')
+		}
+		else if(current_action->getLetter() == 'A' && current_action->getState() == "start")
+		{
+			duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
+			cout << duration << " - OS: starting process " << current_action->getProcessNum() << endl;
+		} 
+		//If P
+		else if(current_action->getLetter() == 'P')
+		{
+			cout << "made it to P" << endl;
+			if(current_action->getCycleTime() > cnfData.quantumTime)
 			{
 				//run quantum
 				runQuantum(cnfData.quantumTime);
-				//check the cycle time < quantum time
-				if(peekAction->getCycleTime() > cnfData.quantumTime)
+				//subtract runtime from quantum time
+				current_action->setCycleTime(current_action->getCycleTime() - cnfData.quantumTime);
+				//set new time as runtime
+				//push action back on the queue (push_front)
+				copied_current_process.actionQueue.push_front(*current_action);
+				PCB_queue.push_back(copied_current_process);
+				delete current_action;
+			}
+			else
+			{
+				//run quantum
+				runQuantum(cnfData.quantumTime);
+				//if process mdfQueue is NOT empty
+				if(!copied_current_process.actionQueue.empty())
 				{
-					//if yes
-					cout << duration << " - OS: quantum time out" << endl;
-					peekAction->setCycleTime((peekAction->getCycleTime()) - (cnfData.quantumTime));
+					//push process back into the queue
+					PCB_queue.push_back(copied_current_process);
+				}
+				delete current_action;
+			}
+			while(!threadTimeFinishedQueue.empty())
+			{
+				//print front()
+				//find parent in blocked queue
+				parentIndex = findParentProcess(threadTimeFinishedQueue.front());
+				if(!blockedQueue[parentIndex].actionQueue.empty() 
+					&& blockedQueue[parentIndex].actionQueue.front().getLetter() != 'A'
+					&& blockedQueue[parentIndex].actionQueue.front().getState() != "end")
+				{
+					placeInPCB_queue = new process();
+					*placeInPCB_queue = copyProcess(blockedQueue[parentIndex]);
+					blockedQueue.erase(blockedQueue.begin()+(parentIndex));
+					PCB_queue.push_back(*placeInPCB_queue);
+					delete placeInPCB_queue;
 				}
 				else
 				{
-					peekActionQ->pop_front();
+					blockedQueue.erase(blockedQueue.begin()+(parentIndex));
+					//pop parent index from blocked queue
 				}
-				
-				//copy PCB_queue.front()
-				//PCB_queue.push_back(copy)
-				tempProcess = new process();
-				*tempProcess = copyProcess(PCB_queue.front());
-				PCB_queue.push_back(*tempProcess);
-				PCB_queue.pop_front();
-				delete tempProcess;
-			}
-			else if(peekAction->getLetter() == 'I' || peekAction->getLetter() == 'O')
-			{
-				//create thread for the action
-				needle = &(*peekAction);
-				pthread_create(&threads[threadCount], NULL, runIO, (void*)needle);
-				threadCount++;
-				//pop from A
-				peekActionQ->pop_front();
-				//copy PCB_queue.front()
-				tempProcess = new process();
-				*tempProcess = copyProcess(PCB_queue.front());
-				//blockedQueue.push_back(copy)
-				blockedQueue.push_back(*tempProcess);
-				PCB_queue.pop_front();
-				delete tempProcess;
-			}
-
-			//check the thread timings if anything is done
-			while(!threadTimeFinishedQueue.empty())
-			{
-				//if something is done
-				//find the parent in the blocked queue
-				int parentIndex = findParentProcess(threadTimeFinishedQueue.front());
-				if(parentIndex == -1)
-				{
-					cout << "An error has occured with finding a thread's process" << endl;
-					exit(1);
-				}
-				tempProcess = new process();
-				*tempProcess = copyProcess(blockedQueue[parentIndex]);
-				//remove it from the blocked queue
-				blockedQueue.erase(blockedQueue.begin() + parentIndex);
-				//return the process back into the PCB_queue
-				PCB_queue.push_back(*tempProcess);
-				PCB_queue.pop_front();
-				delete tempProcess;
-			}
-		}//end of inner while loop
-
-		//pop from PCB_queue;
-		//PCB_queue.pop_front();
-
-		//if PCB_queue is empty && blockedQueue is NOT empty
-		if(PCB_queue.empty() && !blockedQueue.empty())
-		{
-			//print IDLE CPU
-			cout << "IDLE CPU" << endl;
-			//wait until something is in thread timings
-			//while(threadTimeFinishedQueue.empty());
-			while(!threadTimeFinishedQueue.empty())
-			{
-				//if something is done
-				//find the parent in the blocked queue
-				int parentIndex = findParentProcess(threadTimeFinishedQueue.front());
-				if(parentIndex == -1)
-				{
-					cout << "An error has occured with finding a thread's process" << endl;
-					exit(1);
-				}
-				tempProcess = new process();
-				*tempProcess = copyProcess(blockedQueue[parentIndex]);
-				//remove it from the blocked queue
-				blockedQueue.erase(blockedQueue.begin() + parentIndex);
-				//return the process back into the PCB_queue
-				PCB_queue.push_back(*tempProcess);
-				delete tempProcess;
+				threadTimeFinishedQueue.pop_front();
+				//pop action
 			}
 		}
-
-	}//end of outer while loop
+		else if(current_action->getLetter() == 'I' || current_action->getLetter() == 'O')
+		{
+			cout << "made it to I/O" << endl;
+			needle = &(*current_action);
+			duration = ((float)(clock() - runtime)) / CLOCKS_PER_SEC;
+			//(readyQueue.front()).printData(duration, START, whereTo, out, numProcess);
+			pthread_create(&threads[threadCount], NULL, runIO, (void*)needle);
+			threadCount++;
+			//push the process to a blocked queue (or array)
+			blockedQueue.push_back(copied_current_process);
+			delete current_action;
+		}
+		while(!threadTimeFinishedQueue.empty())
+		{
+			while(quantumRunning == true);
+			//print front()
+				//find parent in blocked queue
+				parentIndex = findParentProcess(threadTimeFinishedQueue.front());
+				if(!blockedQueue[parentIndex].actionQueue.empty() 
+					&& blockedQueue[parentIndex].actionQueue.front().getLetter() != 'A'
+					&& blockedQueue[parentIndex].actionQueue.front().getState() != "end")
+				{
+					placeInPCB_queue = new process();
+					*placeInPCB_queue = copyProcess(blockedQueue[parentIndex]);
+					blockedQueue.erase(blockedQueue.begin()+(parentIndex));
+					PCB_queue.push_back(*placeInPCB_queue);
+					delete placeInPCB_queue;
+				}
+				else
+				{
+					blockedQueue.erase(blockedQueue.begin()+(parentIndex));
+					//pop parent index from blocked queue
+				}
+				threadTimeFinishedQueue.pop_front();
+		}
+		*current_action = copyAction(PCB_queue.front().actionQueue.front());
+		PCB_queue.front().actionQueue.pop_front();
+		copied_current_process = copyProcess(PCB_queue.front());
+		PCB_queue.pop_front();
+	}
 }//end of function
 
 void printNode(metaData mdfData)
@@ -314,8 +283,7 @@ void printNode(metaData mdfData)
 	cout << "SAIPO_letter: " << mdfData.getLetter() << endl;
 	cout << "\tState: " << mdfData.getState() << endl;
 	cout << "\tInitial Time: " << mdfData.getInitialTime() << endl;
-	cout << "\tCycle Time: " << mdfData.getCycleTime() << endl; 
-	cout << "\tProcess Number: " << mdfData.getProcessNum() << endl << endl;
+	cout << "\tCycle Time: " << mdfData.getCycleTime() << endl << endl; 
 }
 
 float calcCycleTime(int initialTime, string state, configData cnfData)
@@ -430,4 +398,58 @@ void getConfigData(const char* fileName, configData &cnfData)
 
 	}
 }
+
+
+
+
+
+//while PCB_queue is not empty OR blockedQueue is not empty
+
+	//get the queue (A) from PCB_queue.front()
+
+	//while A is not empty
+		//get the action from A (A.front())
+
+		//if 'S' and "start"
+			//print stuff
+		//if 'S' and "end"
+			//check all the queues and stuff
+
+		//if 'A' and "start"
+			//print stuff
+		//if 'A' and "end"
+			//print stuff
+			//pop from A
+
+		//if 'P'
+			//run quantum
+			//check the cycle time < quantum time
+				//if yes
+					//subtract quantum time from cycle time 
+				//if no
+					//pop from A
+			
+			//copy PCB_queue.front()
+			//PCB_queue.pop_front()
+			//PCB_queue.push_back(copy)
+
+		//if 'I/O'
+			//create thread for the action
+			//pop from A
+			//copy PCB_queue.front()
+			//PCB_queue.pop_front()
+			//blockedQueue.push_back(copy)
+
+		//check the thread timings if anything is done
+	//end of inner while loop
+
+	//if PCB_queue is empty && blockedQueue is NOT empty
+		//print IDLE CPU
+		//wait until something is in thread timings
+
+//end of outer while loop
+			
+			
+				
+				
 	

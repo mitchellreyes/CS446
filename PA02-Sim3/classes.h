@@ -4,6 +4,7 @@
 #include <fstream>
 #include <stdio.h>
 #include <string.h>
+#include <deque>
 
 #define LTB 100
 #define LTM 200
@@ -15,6 +16,9 @@ using namespace std;
 
 class metaData{
     public:
+        metaData();
+        ~metaData();
+
         void setLetter(char);
         void setState(string);
         void setInitialTime(int);
@@ -25,6 +29,8 @@ class metaData{
         string getState();
         int getInitialTime();
         float getCycleTime();
+        int getProcessNum();
+
 
         void readData(ifstream&);
         void printData(float, int, int, ofstream&, int&);
@@ -37,13 +43,27 @@ class metaData{
         int processNum;
 };
 
+class process
+{
+    private:
+        int processID;
+    public:
+        process();
+        ~process();
+        void copyActionQueue(deque<metaData>&);
+        void setProcessID(int);
+        int getProcessID();
+        deque<metaData> actionQueue;
+
+};
+
 class configData{
     public:
         int whereToLog();
         float phase;
         string filePath;
         string schedCode;
-        int quantumTime;
+        float quantumTime;
         int processorCycleTime;
         int monitorDisplayTime;
         int hardDriveCycleTime;
